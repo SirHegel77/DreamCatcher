@@ -34,3 +34,7 @@ I changed the original implementation simply by including timestamp in outupt ju
 * [NumPy + Matplotlib](http://wyolum.com/numpyscipymatplotlib-on-raspberry-pi/)
 
 I decided to use NumPy in my project, as I might want to do FFT transform to analyze the results and to draw [fancy graphs](https://dl.dropboxusercontent.com/u/10487209/1392844852.png) from the output. 
+
+* [Supervisord](http://supervisord.org/)
+
+Supervisord is used to run DreamCatcher as background process.
