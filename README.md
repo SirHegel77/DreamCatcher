@@ -38,3 +38,17 @@ I decided to use NumPy in my project, as I might want to do FFT transform to ana
 * [Supervisord](http://supervisord.org/)
 
 Supervisord is used to run DreamCatcher as background process.
+
+
+## Setup instructions
+
+* Configure i2c as instructed [here](http://learn.adafruit.com/adafruits-raspberry-pi-lesson-4-gpio-setup/configuring-i2c)
+* Optionally change i2c permissions to 666 as described [here](http://www.raspberrypi.org/phpBB3/viewtopic.php?p=238003#p238003)
+* Install required packages
+    sudo apt-get install python-scipy python-numpy python-matplotlib
+    sudo apt-get install libi2c-dev libboost-program-options-dev
+
+* Clone and make [minimu9-ahrs](https://github.com/SirHegel77/minimu9-ahrs.git)
+* Clone[DreamCatcher](https://github.com/SirHegel77/DreamCatcher)
+
+(to be continued)
