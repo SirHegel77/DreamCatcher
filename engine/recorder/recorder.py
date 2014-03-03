@@ -5,11 +5,10 @@ from datetime import datetime
 import time
 from shared import Worker
 import os
-import ConfigParser
 np = None
 import logging
+from shared import read_config
 logger = logging.getLogger(__name__)
-CONFIG_FILE_PATH='/opt/dreamcatcher/conf/dreamcatcher.conf'
 
 class Process(object):
     def __init__(self, command):
@@ -63,10 +62,9 @@ class Recorder(Worker):
         start = None
         data = []
         t = []
-        parser = ConfigParser.SafeConfigParser()
-        parser.read(CONFIG_FILE_PATH)
-        minimu_command = parser.get('minimu', 'command').split()
-        time = parser.getint('recorder', 'sampling_time')
+        config = read_config()
+        minimu_command = config.get('minimu', 'command').split()
+        time = config.getint('recorder', 'sampling_time')
         logger.info("Recording gyro...")
         with Process(minimu_command) as p:
             for line in p:
@@ -140,7 +138,7 @@ class Recorder(Worker):
                 x = data[:,0]
                 y = data[:,1]
                 z = data[:,2]
-                row = [timestamp] + avg(x, dt) + avg(y, dt) + avg(z, dt)  
+                row = [timestamp, len(data), dt] + avg(x, dt) + avg(y, dt) + avg(z, dt)  
                 line = ';'.join((str(x) for x in row))
                 logger.info("Recorded: %s", line)
                 with open(self.data_filename, "a") as f:

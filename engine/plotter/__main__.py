@@ -3,8 +3,7 @@ import subprocess
 from datetime import datetime
 from plotter import plot, plot_fft
 import logging
-import ConfigParser
-CONFIG_FILE_PATH = '/opt/dreamcatcher/conf/dreamcatcher.conf'
+from shared import read_config
 logger = logging.getLogger(__name__)
 
 def main(argv):
@@ -28,8 +27,7 @@ def main(argv):
             else:            
                 help()
                 sys.exit()
-        conf = ConfigParser.SafeConfigParser()
-        conf.read(CONFIG_FILE_PATH)
+        conf = read_config()
         logger.info("Plotting timestamp {0}".format(timestamp))
         plot(
             conf.get('directories', 'sessions'), 

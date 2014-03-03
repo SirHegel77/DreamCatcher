@@ -8,8 +8,6 @@ plt = None
 import logging
 logger = logging.getLogger(__name__)
 
-
-
 def smooth(x,window_len=11,window='hanning'):
     """smooth the data using a window with requested size.
     
@@ -108,7 +106,7 @@ def plot_fft(session_dir, image_dir, timestamp):
     
 
 
-def plot(session_dir, image_dir, timestamp):
+def plot(session_dir, image_dir, timestamp, smooth_data=True):
     import_pyplot()
     outputfilename = os.path.join(image_dir, '{0}.png'.format(timestamp))
     datafilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
@@ -117,48 +115,78 @@ def plot(session_dir, image_dir, timestamp):
     with open(datafilename, "r") as f:
         t = []
         dt = []
-        avg = []
-        pow = []
         std = []
+        pow = []
+        avg = []
+        norm = []
         for line in f:
             values = line.split(";")
             t.append(datetime.fromtimestamp(long(values[0])))
             dt.append(float(values[2]))
-            avg.append(float(values[3]))
-            pow.append(float(values[4]))
-            std.append(float(values[5]))
+            std.append([float(values[i]) for i in [3,6,9]])
+            pow.append([float(values[i]) for i in [4,7,10]])
+            avg.append([float(values[i]) for i in [5,8,11]])
 
+    std = np.array(std)
+    avg = np.array(avg)
+    pow = np.array(pow)
+
+    logging.info("Read {0} rows of data.".format(len(t)))
+
+    logging.info("Reading marker file...")
     with open(markerfilename, "r") as f:
         markers = []
         for line in f:
             markers.append(line.split(";"))
 
-    
-    global plt
-    if plt == None:
-        logging.info("Importing pyplot...")
-        import matplotlib.pyplot as plt
-
-    std = smooth(np.array(std))
-    pow = smooth(np.array(pow))
-    avg = smooth(np.array(avg))
-    std = std[5:len(std)-5]
-    pow = pow[5:len(pow)-5]
-    avg = avg[5:len(avg)-5]
+    logging.info("Read {0} markers.".format(len(markers)))
 
     logging.info("Plotting...")
     dates = matplotlib.dates.date2num(t)
     fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
-
-    ax1.plot_date(dates, std, 'b-')
     ax1.set_title('Std. dev.')
-    #ax1.set_ylim([0,20.0])
-    ax2.plot_date(dates, pow, 'r-')
     ax2.set_title('Signal power')
-    #ax2.set_ylim([100,200.0])
-    ax3.plot_date(dates, avg, 'g-')
     ax3.set_title('Mean')
+    #ax1.set_ylim([0,20.0])
+    #ax2.set_ylim([100,200.0])
     #ax3.set_ylim([10,25.0])
+
+    # Plot individual axes
+    for column, color in [[0, 'r--'],[1,'g--'],[2,'b--']]:
+        s = std[:,column]
+        p = pow[:,column]
+        a = avg[:,column]
+        if smooth_data:
+            logging.info("Smoothing data...")
+            a = smooth(np.array(a))
+            p = smooth(np.array(p))
+            s = smooth(np.array(s))
+            a = a[5:len(a)-5]
+            p = p[5:len(p)-5]
+            s = s[5:len(s)-5]
+            #dates = dates[5:len(dates)-5]
+        logging.info("Plotting axis...")
+        ax1.plot_date(dates, s, color)
+        ax2.plot_date(dates, p, color)
+        ax3.plot_date(dates, a, color)
+
+    avg = np.array([np.sqrt(row.dot(row)) for row in avg])
+    pow = np.array([np.sqrt(row.dot(row)) for row in pow])
+    std = np.array([np.sqrt(row.dot(row)) for row in std])
+    
+    if smooth_data:
+        logging.info("Smoothing data...")
+        avg = smooth(np.array(avg))
+        pow = smooth(np.array(pow))
+        std = smooth(np.array(std))
+        avg = avg[5:len(avg)-5]
+        pow = pow[5:len(pow)-5]
+        std = std[5:len(std)-5]
+
+    ax1.plot_date(dates, std, 'y-')
+    ax2.plot_date(dates, pow, 'y-')
+    ax3.plot_date(dates, avg, 'y-')
+
     plt.gcf().autofmt_xdate()
 
     for timestamp, color in markers:

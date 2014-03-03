@@ -2,6 +2,7 @@ import logging
 import sys
 import getopt
 from recorder import Recorder
+from shared import read_config
 logger = logging.getLogger(__name__)
 
 def record(filename):
@@ -15,24 +16,9 @@ def record(filename):
     logger.info("Finished logging.")
 
 def main(argv):
-    def help():
-        print "Usage: recorder -o <outputfile>"
+    config = read_config()
+    record(config.get('directories', 'sessions'))
 
-    try:
-        opts, args = getopt.getopt(argv, "ho:", ["output="])
-    except getopt.GetoptError:
-        help()
-        sys.exit(2)
-    if len(opts)==0:
-        help()
-    else:
-        for opt, arg in opts:
-            if opt == '-h':
-                help()
-            elif opt in ("-o", "--output"):
-                record(arg)
-            else:
-                help()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
