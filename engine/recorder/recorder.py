@@ -59,13 +59,14 @@ class Recorder(Worker):
         return os.path.join(self._directory,
             "{0}.markers".format(self._timestamp))
 
-    def record_gyro(self, time):
+    def record_gyro(self):
         start = None
         data = []
         t = []
         parser = ConfigParser.SafeConfigParser()
         parser.read(CONFIG_FILE_PATH)
         minimu_command = parser.get('minimu', 'command').split()
+        time = parser.getint('recorder', 'sampling_time')
         logger.info("Recording gyro...")
         with Process(minimu_command) as p:
             for line in p:
@@ -78,10 +79,11 @@ class Recorder(Worker):
                 if self._should_stop or timestamp - start > time:
                     logger.info("Finished recording gyro")
                     break
-                gyro = [float(s) for s in values[7:10]]
-                data.append(math.sqrt(gyro[0]**2 + gyro[1]**2 + gyro[2]**2))
+                x, y, z = [float(s) for s in values[7:10]]
+                data.append([x,y,z])
+                #math.sqrt(gyro[0]**2 + gyro[1]**2 + gyro[2]**2))
                 t.append(timestamp)
-        return t, data
+        return t, np.array(data)
 
 
     def calculate_dt(self, t):
@@ -103,36 +105,43 @@ class Recorder(Worker):
         try:
             with open(self.marker_filename, "w") as f:
                 pass
+
+            def avg(data, dt):
+                abs = np.abs(data)
+                avg = np.mean(abs)
+                pow = np.sum(abs * dt) / 1000.0
+                std = np.std(data)
+                return [avg, pow, std]
+
             while True:
                 timestamp = long(time.mktime(datetime.now().timetuple()))
-                t, data = self.record_gyro(20000)
+                t, data = self.record_gyro()
                 if self._should_stop:
                     break
                 dt = self.calculate_dt(t)
 
-                logger.info("Performing FFT...")
+                #logger.info("Performing FFT...")
 
-                #n = len(data)
-                #k = np.arange(n)
-                #T = n * dt / 1000
-                #frq = k / T
-                #freqs = frq[range(n/2)]
-                fft = np.abs(np.fft.fft(data))
-                freqs = np.fft.fftfreq(fft.size, dt/1000)
-                fft = fft[0:len(fft)/2]
-                freqs = freqs[0:len(freqs)/2]
+                ##n = len(data)
+                ##k = np.arange(n)
+                ##T = n * dt / 1000
+                ##frq = k / T
+                ##freqs = frq[range(n/2)]
+                #fft = np.abs(np.fft.fft(data))
+                #freqs = np.fft.fftfreq(fft.size, dt/1000)
+                #fft = fft[0:len(fft)/2]
+                #freqs = freqs[0:len(freqs)/2]
             
-                filename = os.path.join(self._directory, 
-                    "{0}.npz".format(timestamp))
+                #filename = os.path.join(self._directory, 
+                #    "{0}.npz".format(timestamp))
 
-                np.savez(filename,
-                    fft = fft, freqs = freqs)
- 
-                avg = np.mean(data)
-                pow = np.sum(data * dt) / 1000.0
-                std = np.std(data)
-                line = "{0};{1};{2};{3};{4};{5}".format(
-                    timestamp, len(t), dt, avg, pow, std)
+                #np.savez(filename,
+                #    fft = fft, freqs = freqs)
+                x = data[:,0]
+                y = data[:,1]
+                z = data[:,2]
+                row = [timestamp] + avg(x, dt) + avg(y, dt) + avg(z, dt)  
+                line = ';'.join((str(x) for x in row))
                 logger.info("Recorded: %s", line)
                 with open(self.data_filename, "a") as f:
                     f.write(line + '\n')

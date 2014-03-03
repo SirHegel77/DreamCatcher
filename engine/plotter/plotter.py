@@ -82,18 +82,37 @@ def import_pyplot():
         logging.info("Importing pyplot...")
         import matplotlib.pyplot as plt
 
-def plot_fft(directory, timestamp, outputfile):
+def plot_fft(session_dir, image_dir, timestamp):
     import_pyplot()
-    logger.info(timestamp)
-    filename = os.path.join(directory, '{0}.npz'.format(timestamp))
-    data = np.load(filename)
-    plt.plot(data['freqs'], data['fft'], 'x')
-    plt.savefig(outputfile)
+    inputfilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
+    outputfilename = os.path.join(image_dir, '{0}.png'.format(timestamp))
+
+    logger.info("Reading input file...")
+    with open(inputfilename, 'r') as f:
+        rows = []
+        for line in f:
+            values = line.split(';')
+            filename = os.path.join(session_dir, '{0}.npz'.format(values[0]))
+            data = np.load(filename)['fft']
+            rows.append(data[0:50])
+
+    logger.info("Stacking data...")
+    data = np.column_stack(rows)
+    logger.info("Plotting...")
+    from matplotlib import cm
+    fig, ax = plt.subplots()
+    cax = ax.imshow(data, interpolation='nearest', cmap=cm.coolwarm)
+    ax.set_title('foo')
+    logger.info("Saving image...")
+    plt.savefig(outputfilename)
+    
 
 
-def plot(directory, timestamp, outputfile):
-    datafilename = os.path.join(directory, '{0}.data'.format(timestamp))
-    markerfilename = os.path.join(directory, '{0}.markers'.format(timestamp))
+def plot(session_dir, image_dir, timestamp):
+    import_pyplot()
+    outputfilename = os.path.join(image_dir, '{0}.png'.format(timestamp))
+    datafilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
+    markerfilename = os.path.join(session_dir, '{0}.markers'.format(timestamp))
     logging.info("Reading input file %s", datafilename)
     with open(datafilename, "r") as f:
         t = []
@@ -108,8 +127,6 @@ def plot(directory, timestamp, outputfile):
             avg.append(float(values[3]))
             pow.append(float(values[4]))
             std.append(float(values[5]))
-
-
 
     with open(markerfilename, "r") as f:
         markers = []
@@ -129,20 +146,19 @@ def plot(directory, timestamp, outputfile):
     pow = pow[5:len(pow)-5]
     avg = avg[5:len(avg)-5]
 
-
     logging.info("Plotting...")
     dates = matplotlib.dates.date2num(t)
     fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
 
     ax1.plot_date(dates, std, 'b-')
     ax1.set_title('Std. dev.')
-    ax1.set_ylim([0,20.0])
+    #ax1.set_ylim([0,20.0])
     ax2.plot_date(dates, pow, 'r-')
     ax2.set_title('Signal power')
-    ax2.set_ylim([100,200.0])
+    #ax2.set_ylim([100,200.0])
     ax3.plot_date(dates, avg, 'g-')
     ax3.set_title('Mean')
-    ax3.set_ylim([10,25.0])
+    #ax3.set_ylim([10,25.0])
     plt.gcf().autofmt_xdate()
 
     for timestamp, color in markers:
@@ -153,6 +169,6 @@ def plot(directory, timestamp, outputfile):
         ax3.axvline(x=t, color='b')
 
     # ax.set_ylim(ymin=0, ymax=5000)
-    logging.info("Saving output file %s", outputfile)
-    fig.savefig(outputfile)      
+    logging.info("Saving output file %s", outputfilename)
+    fig.savefig(outputfilename)      
     logging.info("Finished plotting")

@@ -1,17 +1,18 @@
 import sys, getopt
 import subprocess
 from datetime import datetime
-from plotter import plot_fft
+from plotter import plot, plot_fft
 import logging
+import ConfigParser
+CONFIG_FILE_PATH = '/opt/dreamcatcher/conf/dreamcatcher.conf'
+logger = logging.getLogger(__name__)
 
 def main(argv):
     def help():
-        print "Usage: plotter -b <basedir> -t <timestamp> -o <outputfile>"
-    basedir = ''
+        print "Usage: plotter -t <timestamp>"
     timestamp = ''
-    outputfile = ''
     try:
-        opts, args = getopt.getopt(argv, "hb:t:o:", ["basedir=", "timestamp=", "output="])
+        opts, args = getopt.getopt(argv, "ht:", ["timestamp="])
     except getopt.GetoptError:
         help()
         sys.exit(2)
@@ -22,16 +23,19 @@ def main(argv):
             if opt == '-h':
                 help()
                 sys.exit()
-            elif opt in ("-b", "--basedir"):
-                basedir = arg
             elif opt in ("-t", "--timestamp"):
                 timestamp = arg
-            elif opt in ("-o", "--output"):
-                outputfile = arg
             else:            
                 help()
                 sys.exit()
-        plot_fft(basedir, timestamp, outputfile)
+        conf = ConfigParser.SafeConfigParser()
+        conf.read(CONFIG_FILE_PATH)
+        logger.info("Plotting timestamp {0}".format(timestamp))
+        plot(
+            conf.get('directories', 'sessions'), 
+            conf.get('directories', 'images'), 
+            timestamp)
+        logger.info("Finished plotting.")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
