@@ -2,14 +2,14 @@
 
 SUPERVISORD=/usr/local/bin/supervisord
 PIDFILE=/tmp/supervisord.pid
-OPTS="-c /dreamcatcher/conf/supervisord.conf"
+OPTS="-c /opt/dreamcatcher/conf/supervisord.conf"
 
 test -x $SUPERVISORD || exit 0
 
 . /lib/lsb/init-functions
 
 export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/sbin:/sbin"
-export PYTHONPATH=/dreamcatcher/engine
+export PYTHONPATH=/opt/dreamcatcher/engine
 
 case "$1" in
   start)

@@ -5,16 +5,11 @@ from datetime import datetime
 import time
 from shared import Worker
 import os
+import ConfigParser
 np = None
 import logging
 logger = logging.getLogger(__name__)
-
-MINIMU_PATH = "/home/pi/code/minimu9-ahrs/minimu9-ahrs"
-I2C_PORT = "/dev/i2c-1"
-MINIMU_MODE = "raw"
-MINIMU_OUTPUT = "euler"
-MINIMU_COMMAND = [MINIMU_PATH, "-b",
-    I2C_PORT, "--mode", MINIMU_MODE]
+CONFIG_FILE_PATH='/opt/dreamcatcher/conf/dreamcatcher.conf'
 
 class Process(object):
     def __init__(self, command):
@@ -68,8 +63,11 @@ class Recorder(Worker):
         start = None
         data = []
         t = []
+        parser = ConfigParser.SafeConfigParser()
+        parser.read(CONFIG_FILE_PATH)
+        minimu_command = parser.get('minimu', 'command').split()
         logger.info("Recording gyro...")
-        with Process(MINIMU_COMMAND) as p:
+        with Process(minimu_command) as p:
             for line in p:
                 if self._should_stop:
                     break

@@ -1,5 +1,4 @@
 import logging
-from shared import config
 from time import sleep
 import sys
 from menu import LcdMenu, MenuItem
@@ -9,12 +8,17 @@ import os
 from recorder import Recorder
 import plotter
 import signal
+import ConfigParser
 
+CONFIG_FILE_PATH = '/opt/dreamcatcher/conf/dreamcatcher.conf'
 logger = logging.getLogger(__name__)
 
 class DreamCatcher(object):
     def __init__(self):
-        self._path = '/dreamcatcher/data/sessions'
+        self._config = ConfigParser.SafeConfigParser()
+        self._config.read(CONFIG_FILE_PATH)
+        self._path = os.path.abspath(
+            self._config.get('directories', 'sessions'))
         self._recorder = None
         self.create_menu()
 
@@ -43,7 +47,8 @@ class DreamCatcher(object):
             logger.info("Plotting %s", timestamp)
             self.menu.message = "Plotting..."
             plotter.plot(self._path, timestamp,
-                os.path.join(self._path, '../images',
+                os.path.join(
+                os.path.abspath(self._config.get('directories', 'images')),
                 '{0}.png'.format(timestamp)))
             self.menu.current_item = self._root_item
         return plot
