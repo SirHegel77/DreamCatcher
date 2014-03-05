@@ -58,6 +58,6 @@ class Worker(object):
     def _run(self):
         """ 
         Worker method to be implemented by inherited class.
-        Exis a.s.a.s. if _should_stop is set to True.
+        Exit a.s.a.p. if _should_stop is set to True.
         """
         pass

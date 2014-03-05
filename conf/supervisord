@@ -1,7 +1,7 @@
 #! /bin/bash -e
 
 SUPERVISORD=/usr/local/bin/supervisord
-PIDFILE=/tmp/supervisord.pid
+PIDFILE=/var/tmp/supervisord.pid
 OPTS="-c /opt/dreamcatcher/conf/supervisord.conf"
 
 test -x $SUPERVISORD || exit 0

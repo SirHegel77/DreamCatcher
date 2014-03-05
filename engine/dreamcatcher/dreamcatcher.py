@@ -21,8 +21,10 @@ class DreamCatcher(object):
         self.create_menu()
 
     def create_menu(self):
+        """ Create LCD menu. """
         m = LcdMenu()
         self._menu = m
+
         self._root_item = m.add_item("DreamCatcher", 
             self.record_marker)
 
@@ -36,11 +38,13 @@ class DreamCatcher(object):
         m.add_item("Shut down", self.shut_down)
  
     def delete_file(self, filename):
+        """ Delete selected recording session. """
         def delete():
             logger.info("Deleting %s", filename)
         return delete
 
     def plot_file(self, timestamp):
+        """ Plot selected recording session. """
         def plot():
             logger.info("Plotting %s", timestamp)
             config = read_config()
@@ -53,8 +57,8 @@ class DreamCatcher(object):
         return plot
 
     def update_file_menu(self):
+        """ Update file menu sub-items when file menu is activated. """
         del self._file_item.items[:]
-
         files = os.listdir(self._path)
         files.sort(key=lambda x: os.path.getmtime(os.path.join(self._path, x)))
         for name in reversed(files):
@@ -67,6 +71,7 @@ class DreamCatcher(object):
                 item.add_item("Delete", self.delete_file(timestamp))
 
     def start_recording(self):
+        """ Start recording data. """
         if self._recorder == None:
             logger.info("Starting recorder...")
             self._recorder = Recorder(self._path)
@@ -77,6 +82,7 @@ class DreamCatcher(object):
             self.menu.lcd.backlight(self.menu.lcd.RED)
 
     def stop_recording(self):
+        """ Stop recording data. """
         if self._recorder != None:
             logger.info("Stopping recorder...")
             self._recorder.stop()
@@ -87,6 +93,7 @@ class DreamCatcher(object):
             self.menu.lcd.backlight(self.menu.lcd.BLUE)
 
     def record_marker(self):
+        """ Record marker. """
         if self._recorder != None:
             self.menu.lcd.backlight(self.menu.lcd.GREEN)
             self._recorder.record_marker()
@@ -94,6 +101,7 @@ class DreamCatcher(object):
             self.menu.lcd.backlight(self.menu.lcd.RED)
 
     def toggle_recording(self):
+        """ Start or stop recording. """
         if self._recorder == None:
             self.start_recording()
         else:
@@ -101,9 +109,11 @@ class DreamCatcher(object):
 
     @property
     def menu(self):
+        """ Return LCD menu instance."""
         return self._menu
 
     def run(self):
+        """ Start main loop. """
         logger.info("Starting DreamCatcher...")
         self._running = True
         self._menu.start()
@@ -114,17 +124,17 @@ class DreamCatcher(object):
             pass
 
         self.stop_recording()
-
         logger.info("Stopping menu...")
         self._menu.stop()
         logger.info("DreamCatcher stopped.")
 
     def stop(self):
+        """ Stop DreamCatcher. """
         logger.info("Stopping DreamCatcher...")
         self._running = False
 
-
     def shut_down(self):
+        """ Shut down operating system... """
         logger.info("Shutting down operating system.")
         self.stop_recording()
         self.menu.message = "Shutting\ndown!"

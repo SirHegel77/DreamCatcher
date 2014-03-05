@@ -1,46 +1,14 @@
 import sys, getopt
 import math
-import subprocess
 from datetime import datetime
 import time
 from shared import Worker
+from shared import Process
 import os
 np = None
 import logging
-from shared import read_config
+from shared import read_config, save_config
 logger = logging.getLogger(__name__)
-
-class Process(object):
-    def __init__(self, command):
-        super(Process, self).__init__()
-        self._command = command
-        self._process = None
-        self._refs = 0
-
-    def __iter__(self):
-        return self
-
-
-    def __enter__(self):
-        if self._refs == 0:
-            logger.info("Starting process %s", self._command)
-            self._process = subprocess.Popen(self._command,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        self._refs += 1
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self._refs -= 1
-        if self._refs == 0:
-            logger.info("Terminating process")
-            self._process.terminate()
-            self._process.stdout.close()
-
-
-    def next(self):
-        if self._process.poll() != None:
-            raise StopIteration
-        return self._process.stdout.readline()    
 
 class Recorder(Worker):
     def __init__(self, directory):
@@ -57,6 +25,12 @@ class Recorder(Worker):
     def marker_filename(self):
         return os.path.join(self._directory,
             "{0}.markers".format(self._timestamp))
+
+    @property
+    def motion_filename(self):
+        return os.path.join(self._directory,
+            "{0}.motion".format(self._timestamp))
+
 
     def record_gyro(self):
         start = None
@@ -94,12 +68,28 @@ class Recorder(Worker):
         with open(self.marker_filename, "a") as f:
             f.write('{0};b\n'.format(timestamp))
 
+    def record_motion(self, motion_data):
+        logger.info("Recording motion data.")
+        config = read_config()
+        session = config.getint('recorder', 'current_session')
+        if session == 0:
+            logger.error("No active session.")
+            return
+        motion_filename = os.path.join(self._directory,
+            "{0}.motion".format(session))
+        timestamp = long(time.mktime(datetime.now().timetuple()))
+        with open(motion_filename, "a") as f:
+            f.write('{0};{1}\n'.format(timestamp, motion_data))        
+
     def _run(self):
         logger.info("Importing numpy...")
         global np
         import numpy as np
         logger.info("Recording to %s", self.data_filename)
 
+        config = read_config()
+        config.set('recorder', 'current_session', str(self._timestamp))
+        save_config(config)
         try:
             with open(self.marker_filename, "w") as f:
                 pass
@@ -148,60 +138,8 @@ class Recorder(Worker):
             logger.info("Keyboard interrupt")
         except:
             logger.error("Unhandled exception: %s", sys.exc_info()[1])
+        finally:
+            config.set('recorder', 'current_session',str(0))
+            save_config(config)
         logger.info("Finished recording")
 
-def smooth(x,window_len=11,window='hanning'):
-    """smooth the data using a window with requested size.
-    
-    This method is based on the convolution of a scaled window with the signal.
-    The signal is prepared by introducing reflected copies of the signal 
-    (with the window size) in both ends so that transient parts are minimized
-    in the begining and end part of the output signal.
-    
-    input:
-        x: the input signal 
-        window_len: the dimension of the smoothing window; should be an odd integer
-        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
-            flat window will produce a moving average smoothing.
-
-    output:
-        the smoothed signal
-        
-    example:
-
-    t=linspace(-2,2,0.1)
-    x=sin(t)+randn(len(t))*0.1
-    y=smooth(x)
-    
-    see also: 
-    
-    numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
-    scipy.signal.lfilter
- 
-    TODO: the window parameter could be the window itself if an array instead of a string
-    NOTE: length(output) != length(input), to correct this: return y[(window_len/2-1):-(window_len/2)] instead of just y.
-    """
-
-    if x.ndim != 1:
-        raise ValueError, "smooth only accepts 1 dimension arrays."
-
-    if x.size < window_len:
-        raise ValueError, "Input vector needs to be bigger than window size."
-
-
-    if window_len<3:
-        return x
-
-
-    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
-
-
-    s=np.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
-    if window == 'flat': #moving average
-        w=np.ones(window_len,'d')
-    else:
-        w=eval('np.'+window+'(window_len)')
-
-    y=np.convolve(w/w.sum(),s,mode='valid')
-    return y

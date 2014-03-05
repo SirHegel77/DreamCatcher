@@ -106,11 +106,12 @@ def plot_fft(session_dir, image_dir, timestamp):
     
 
 
-def plot(session_dir, image_dir, timestamp, smooth_data=True):
+def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
     import_pyplot()
     outputfilename = os.path.join(image_dir, '{0}.png'.format(timestamp))
     datafilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
     markerfilename = os.path.join(session_dir, '{0}.markers'.format(timestamp))
+    motionfilename = os.path.join(session_dir, '{0}.motion'.format(timestamp))
     logging.info("Reading input file %s", datafilename)
     with open(datafilename, "r") as f:
         t = []
@@ -123,15 +124,21 @@ def plot(session_dir, image_dir, timestamp, smooth_data=True):
             values = line.split(";")
             t.append(datetime.fromtimestamp(long(values[0])))
             dt.append(float(values[2]))
-            std.append([float(values[i]) for i in [3,6,9]])
+            avg.append([float(values[i]) for i in [3,6,9]])
             pow.append([float(values[i]) for i in [4,7,10]])
-            avg.append([float(values[i]) for i in [5,8,11]])
+            std.append([float(values[i]) for i in [5,8,11]])
+
+    starttime = datetime.fromtimestamp(long(timestamp))
+    endtime = datetime.fromtimestamp(long(values[0])) #Last row recorded
+    header = "Session recorded {0} {1}-{2}".format(
+        starttime.strftime('%a %d.%m.%Y'),
+        starttime.strftime('%H:%I'),
+        endtime.strftime('%H:%I'))
+      
 
     std = np.array(std)
     avg = np.array(avg)
     pow = np.array(pow)
-
-    logging.info("Read {0} rows of data.".format(len(t)))
 
     logging.info("Reading marker file...")
     with open(markerfilename, "r") as f:
@@ -140,35 +147,44 @@ def plot(session_dir, image_dir, timestamp, smooth_data=True):
             markers.append(line.split(";"))
 
     logging.info("Read {0} markers.".format(len(markers)))
+    motion = None
+    if os.path.exists(motionfilename):
+        logging.info("Reading motion file...")
+        with open(motionfilename, "r") as f:
+            motion = []
+            for line in f:
+                motion.append(line.split(";"))
 
     logging.info("Plotting...")
     dates = matplotlib.dates.date2num(t)
-    fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
-    ax1.set_title('Std. dev.')
-    ax2.set_title('Signal power')
-    ax3.set_title('Mean')
-    #ax1.set_ylim([0,20.0])
-    #ax2.set_ylim([100,200.0])
-    #ax3.set_ylim([10,25.0])
-
-    # Plot individual axes
-    for column, color in [[0, 'r--'],[1,'g--'],[2,'b--']]:
-        s = std[:,column]
-        p = pow[:,column]
-        a = avg[:,column]
-        if smooth_data:
-            logging.info("Smoothing data...")
-            a = smooth(np.array(a))
-            p = smooth(np.array(p))
-            s = smooth(np.array(s))
-            a = a[5:len(a)-5]
-            p = p[5:len(p)-5]
-            s = s[5:len(s)-5]
-            #dates = dates[5:len(dates)-5]
-        logging.info("Plotting axis...")
-        ax1.plot_date(dates, s, color)
-        ax2.plot_date(dates, p, color)
-        ax3.plot_date(dates, a, color)
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
+    fig.suptitle(header)
+    ax1.set_title('Average')
+    ax2.set_title('Std. Dev.')
+    #ax3.set_title('Power')
+    ax1.set_ylim([0,40.0])
+    ax2.set_ylim([0,25.0])
+    #ax3.set_ylim([0,25.0])
+    
+    if plot_axes:
+        # Plot individual axes
+        for column, color in [[0, 'r.'],[1,'g.'],[2,'b.']]:
+            s = std[:,column]
+            p = pow[:,column]
+            a = avg[:,column]
+            if smooth_data:
+                logging.info("Smoothing data...")
+                a = smooth(np.array(a))
+                p = smooth(np.array(p))
+                s = smooth(np.array(s))
+                a = a[5:len(a)-5]
+                p = p[5:len(p)-5]
+                s = s[5:len(s)-5]
+                #dates = dates[5:len(dates)-5]
+            logging.info("Plotting axis...")
+            ax1.plot_date(dates, a, color)
+            ax2.plot_date(dates, s, color)
+            #ax3.plot_date(dates, p, color)
 
     avg = np.array([np.sqrt(row.dot(row)) for row in avg])
     pow = np.array([np.sqrt(row.dot(row)) for row in pow])
@@ -183,20 +199,28 @@ def plot(session_dir, image_dir, timestamp, smooth_data=True):
         pow = pow[5:len(pow)-5]
         std = std[5:len(std)-5]
 
-    ax1.plot_date(dates, std, 'y-')
-    ax2.plot_date(dates, pow, 'y-')
-    ax3.plot_date(dates, avg, 'y-')
+    ax1.plot_date(dates, avg, 'k.')
+    ax2.plot_date(dates, std, 'k.')
+    #ax3.plot_date(dates, pow, 'k.')
 
     plt.gcf().autofmt_xdate()
 
     for timestamp, color in markers:
         t = datetime.fromtimestamp(long(timestamp))
         logger.info("Drawing marker at %s", timestamp)
-        ax1.axvline(x=t, color='r')
-        ax2.axvline(x=t, color='g')
-        ax3.axvline(x=t, color='b')
+        ax1.axvline(x=t, color='k')
+        ax2.axvline(x=t, color='k')
+        #ax3.axvline(x=t, color='k')
+    
+    if motion:
+        for timestamp, data in motion:
+            t = datetime.fromtimestamp(long(timestamp))
+            logger.info("Drawing motion marker at %s", timestamp)
+            ax1.axvline(x=t, color='y')
+            ax2.axvline(x=t, color='y')
+            #ax3.axvline(x=t, color='k')
 
-    # ax.set_ylim(ymin=0, ymax=5000)
+
     logging.info("Saving output file %s", outputfilename)
     fig.savefig(outputfilename)      
     logging.info("Finished plotting")

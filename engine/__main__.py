@@ -1,10 +1,11 @@
+"""
+Main entry point for DreamCather.
+"""
 import logging
 import signal
 from dreamcatcher import DreamCatcher
 import sys
-
 logger = logging.getLogger(__name__)
-
 
 if __name__ == '__main__':   
     logging.basicConfig(level=logging.INFO,
@@ -21,7 +22,6 @@ if __name__ == '__main__':
         dreamcatcher.stop()
 
     signal.signal(signal.SIGTERM, signal_handler)
-
     try:
         dreamcatcher.run()
     except KeyboardInterrupt:
@@ -29,5 +29,4 @@ if __name__ == '__main__':
         dreamcatcher.stop()
     except:
         logger.error(sys.exc_info())
-
     logger.info("DreamCatcher stopped.")
