@@ -26,13 +26,16 @@ class Process(object):
     def __exit__(self, type, value, traceback):
         self._refs -= 1
         if self._refs == 0:
-            logger.info("Terminating process")
-            self._process.terminate()
+            if self._process.poll()==None:
+                logger.info("Terminating process")
+                self._process.terminate()
             self._process.stdout.close()
 
 
     def next(self):
-        if self._process.poll() != None:
+        #if self._process.poll() != None:
+        #    raise StopIteration
+        result = self._process.stdout.readline()
+        if result == '':
             raise StopIteration
-        return self._process.stdout.readline()
-
+        return result

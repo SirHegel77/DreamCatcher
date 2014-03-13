@@ -4,6 +4,7 @@ from datetime import datetime
 import time
 from shared import Worker
 from shared import Process
+from shared import smooth
 import os
 np = None
 import logging
@@ -55,7 +56,7 @@ class Recorder(Worker):
                 data.append([x,y,z])
                 #math.sqrt(gyro[0]**2 + gyro[1]**2 + gyro[2]**2))
                 t.append(timestamp)
-        return t, np.array(data)
+        return np.array(t), np.array(data)
 
 
     def calculate_dt(self, t):
@@ -106,31 +107,43 @@ class Recorder(Worker):
                 t, data = self.record_gyro()
                 if self._should_stop:
                     break
-                dt = self.calculate_dt(t)
+                dt = np.average(np.gradient(t)) / 1000.0
 
-                #logger.info("Performing FFT...")
+                filename = os.path.join(self._directory, 
+                    "{0}.npz".format(timestamp))
 
-                ##n = len(data)
-                ##k = np.arange(n)
-                ##T = n * dt / 1000
-                ##frq = k / T
-                ##freqs = frq[range(n/2)]
-                #fft = np.abs(np.fft.fft(data))
-                #freqs = np.fft.fftfreq(fft.size, dt/1000)
-                #fft = fft[0:len(fft)/2]
-                #freqs = freqs[0:len(freqs)/2]
-            
-                #filename = os.path.join(self._directory, 
-                #    "{0}.npz".format(timestamp))
-
-                #np.savez(filename,
+                np.savez(filename, t=t, data=data)
+                logger.info("Saved data to %s", filename)
                 #    fft = fft, freqs = freqs)
                 x = data[:,0]
                 y = data[:,1]
                 z = data[:,2]
-                row = [timestamp, len(data), dt] + avg(x, dt) + avg(y, dt) + avg(z, dt)  
+                w = np.sqrt(x*x+y*y+z*z)
+                w = w - np.average(w)
+                abs = np.abs(w)
+                avg = np.mean(abs)
+                std = np.std(w)
+                logger.info("Smoothing data...")
+                window_len = 101
+                snip = (window_len-1)/2
+                window = 'hanning'
+                ws = smooth(w,window_len=window_len, window=window)
+                ws = ws[snip:len(ws)-snip]
+                logger.info("Performing FFT...")
+                spec = np.fft.fft(ws)
+                ps = np.abs(spec)**2
+                freq = np.fft.fftfreq(len(t), dt)
+                index = np.argmax(ps)
+                pow = ps[index]
+                if pow > 200000:
+                    f = np.abs(freq[index] * 60)
+                    logger.info("Detected breating frequency %s", f)
+                else:
+                    f = 0
+
+                row = [timestamp, len(data), dt, avg, std, f]  
                 line = ';'.join((str(x) for x in row))
-                logger.info("Recorded: %s", line)
+                #logger.info("Recorded: %s", line)
                 with open(self.data_filename, "a") as f:
                     f.write(line + '\n')
 

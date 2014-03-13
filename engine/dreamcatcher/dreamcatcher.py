@@ -9,6 +9,7 @@ from recorder import Recorder
 import plotter
 import signal
 from shared import read_config
+from shared import ifconfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,9 @@ class DreamCatcher(object):
         self._file_item = m.add_item(
             "File", activated=self.update_file_menu)
 
+        self._network_item = m.add_item(
+            "Network", activated=self.update_network_menu)
+
         m.add_item("Exit", self.stop)
         m.add_item("Shut down", self.shut_down)
  
@@ -49,12 +53,18 @@ class DreamCatcher(object):
             logger.info("Plotting %s", timestamp)
             config = read_config()
             self.menu.message = "Plotting..."
-            plotter.plot(self._path, timestamp,
-                os.path.join(
-                os.path.abspath(config.get('directories', 'images')),
-                '{0}.png'.format(timestamp)))
+            plotter.plot(
+                config.get('directories', 'sessions'),
+                config.get('directories', 'images'),
+                timestamp)
             self.menu.current_item = self._root_item
         return plot
+
+    def update_network_menu(self):
+        del self._network_item.items[:]
+        for device, ip in ifconfig().items():
+            self._network_item.add_item(
+                '\n'.join([device, ip])) 
 
     def update_file_menu(self):
         """ Update file menu sub-items when file menu is activated. """

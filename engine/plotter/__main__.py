@@ -1,7 +1,7 @@
 import sys, getopt
 import subprocess
 from datetime import datetime
-from plotter import plot, plot_fft
+from plotter import plot, plot_fft, plot_histogram
 import logging
 from shared import read_config
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def main(argv):
                 sys.exit()
         conf = read_config()
         logger.info("Plotting timestamp {0}".format(timestamp))
-        plot(
+        plot_fft(
             conf.get('directories', 'sessions'), 
             conf.get('directories', 'images'), 
             timestamp)
