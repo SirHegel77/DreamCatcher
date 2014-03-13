@@ -201,6 +201,36 @@ def get_bands():
     m = [float(x) for x in m]
     b.append(10000.0)
     return [[b[i], b[i+1]-(b[i+1]-b[i])/2, m[i]] for i in range(len(b)-1)]
+
+
+def read_input_file(filename):
+    logging.info("Reading data file %s", filename)
+    t = []
+    n = []
+    dt = []
+    avg = []
+    std = []
+    breath = []
+    with open(filename, "r") as f:
+        for line in f:
+            values = line.split(";")
+            t.append(datetime.fromtimestamp(long(values[0])))
+            n.append(int(values[1]))
+            dt.append(float(values[2]))
+            avg.append(float(values[3]))
+            std.append(float(values[4]))
+            breath.append(float(values[5]))
+    logger.info("Finished reading data file.")
+    return [t, n, dt, avg, std, breath]
+
+def read_marker_file(filename):
+    logging.info("Reading marker file %s", filename)
+    with open(filename, "r") as f:
+        markers = []
+        for line in f:
+            markers.append(line.split(";"))
+    logging.info("Read %s markers.", len(markers))
+    return markers
     
 def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
     import_pyplot()
@@ -208,47 +238,18 @@ def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
     datafilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
     markerfilename = os.path.join(session_dir, '{0}.markers'.format(timestamp))
     motionfilename = os.path.join(session_dir, '{0}.motion'.format(timestamp))
-    logging.info("Reading input file %s", datafilename)
-    with open(datafilename, "r") as f:
-        t = []
-        dt = []
-        std = []
-        pow = []
-        avg = []
-        for line in f:
-            values = line.split(";")
-            t.append(datetime.fromtimestamp(long(values[0])))
-            dt.append(float(values[2]))
-            avg.append([float(values[i]) for i in [3,6,9]])
-            pow.append([float(values[i]) for i in [4,7,10]])
-            std.append([float(values[i]) for i in [5,8,11]])
 
-    starttime = datetime.fromtimestamp(long(timestamp))
-    endtime = datetime.fromtimestamp(long(values[0])) #Last row recorded
+    t, n, dt, avg, std, breath = read_input_file(datafilename)
+  
     header = "Session recorded {0} {1}-{2}".format(
-        starttime.strftime('%a %d.%m.%Y'),
-        starttime.strftime('%H:%I'),
-        endtime.strftime('%H:%I'))
+        t[0].strftime('%a %d.%m.%Y'),
+        t[0].strftime('%H:%M:%S'),
+        t[-1].strftime('%H:%M:%S'))
       
-
-    std = np.array(std)
-    avg = np.array(avg)
-    pow = np.array(pow)
-
-    logging.info("Reading marker file...")
-    with open(markerfilename, "r") as f:
-        markers = []
-        for line in f:
-            markers.append(line.split(";"))
-
-    logging.info("Read {0} markers.".format(len(markers)))
+    markers = read_marker_file(markerfilename)
     motion = None
     if os.path.exists(motionfilename):
-        logging.info("Reading motion file...")
-        with open(motionfilename, "r") as f:
-            motion = []
-            for line in f:
-                motion.append(line.split(";"))
+        motion = read_marker_file(motionfilename)
 
     logging.info("Plotting...")
     dates = matplotlib.dates.date2num(t)
@@ -256,49 +257,25 @@ def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
     fig.suptitle(header)
     ax1.set_title('Average')
     ax2.set_title('Std. Dev.')
-    ax3.set_title('Error')
-    ax1.set_ylim([0,40.0])
-    ax2.set_ylim([0,25.0])
-    ax3.set_ylim([0,3.0])
+    ax3.set_title('Breath rate')
+    #ax1.set_ylim([0,40.0])
+    #ax2.set_ylim([0,25.0])
+    #ax3.set_ylim([0,3.0])
     
-    if plot_axes:
-        # Plot individual axes
-        for column, color in [[0, 'r.'],[1,'g.'],[2,'b.']]:
-            s = std[:,column]
-            p = pow[:,column]
-            a = avg[:,column]
-            if smooth_data:
-                logging.info("Smoothing data...")
-                a = smooth(np.array(a))
-                p = smooth(np.array(p))
-                s = smooth(np.array(s))
-                a = a[5:len(a)-5]
-                p = p[5:len(p)-5]
-                s = s[5:len(s)-5]
-                #dates = dates[5:len(dates)-5]
-            logging.info("Plotting axis...")
-            ax1.plot_date(dates, a, color)
-            ax2.plot_date(dates, s, color)
-            #ax3.plot_date(dates, p, color)
-
-    avg = np.array([np.sqrt(row.dot(row)) for row in avg])
-    pow = np.array([np.sqrt(row.dot(row)) for row in pow])
-    std = np.array([np.sqrt(row.dot(row)) for row in std])
-
-    logger.info("Calculating error...")
-    errors = []
-    bands = get_bands()
-    for value in std:
-        for band, limit, multiplier in bands:
-            if value < limit:
-                err = (value - band) * multiplier
-                errors.append(err)
-                break
+#    logger.info("Calculating error...")
+#    errors = []
+#    bands = get_bands()
+#    for value in std:
+#        for band, limit, multiplier in bands:
+#            if value < limit:
+#                err = (value - band) * multiplier
+#                errors.append(err)
+#                break
 
     #errors = smooth(np.array(errors))
     #errors = errors[5:len(errors)-5]
 
-    logger.info("n1=%s, n2=%s", len(std), len(errors))
+#    logger.info("n1=%s, n2=%s", len(std), len(errors))
 
     if smooth_data:
         logging.info("Smoothing data...")
@@ -311,7 +288,7 @@ def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
 
     ax1.plot_date(dates, avg, 'k.')
     ax2.plot_date(dates, std, 'k.')
-    ax3.plot_date(dates, errors, 'r.')
+    ax3.plot_date(dates, breath, 'r.')
 
     plt.gcf().autofmt_xdate()
 

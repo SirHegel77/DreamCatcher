@@ -9,6 +9,7 @@ import os
 np = None
 import logging
 from shared import read_config, save_config
+from shared import RingBuffer
 logger = logging.getLogger(__name__)
 
 class Recorder(Worker):
@@ -34,29 +35,45 @@ class Recorder(Worker):
 
 
     def record_gyro(self):
-        start = None
-        data = []
-        t = []
         config = read_config()
         minimu_command = config.get('minimu', 'command').split()
-        time = config.getint('recorder', 'sampling_time')
         logger.info("Recording gyro...")
+        window_length = config.getint('recorder', 'window_length')
+        increment = config.getint('recorder', 'window_increment')
+        window = RingBuffer(window_length)
+        timestamps = np.zeros(increment, dtype='f')
+        data = np.zeros(increment, dtype='f')
+        i = 0
         with Process(minimu_command) as p:
             for line in p:
                 if self._should_stop:
                     break
-                values = line.split()
-                timestamp = long(values[0])
-                if start == None:
-                    start = timestamp
-                if self._should_stop or timestamp - start > time:
-                    logger.info("Finished recording gyro")
-                    break
-                x, y, z = [float(s) for s in values[7:10]]
-                data.append([x,y,z])
+                if i < increment:
+                    values = line.split()
+                    t = long(values[0])
+                    w = float(values[10])
+                    timestamps[i] = t
+                    data[i] = w
+                    i+=1
+                else:
+                    logger.info("Analyzing...")
+                    window.extend(data)
+                    dt = np.abs(np.average(np.gradient(timestamps))) / 1000
+                    spec = np.fft.fft(data)
+                    freqs = np.fft.fftfreq(window_length, dt)
+                    i = 0
+                    
+#                timestamp = long(values[0])
+#                if start == None:
+#                    start = timestamp
+#                if self._should_stop or timestamp - start > time:
+#                    logger.info("Finished recording gyro")
+#                    break
+#                x, y, z = [float(s) for s in values[7:10]]
+#                data.append([x,y,z])
                 #math.sqrt(gyro[0]**2 + gyro[1]**2 + gyro[2]**2))
-                t.append(timestamp)
-        return np.array(t), np.array(data)
+#                t.append(timestamp)
+#        return np.array(t), np.array(data)
 
 
     def calculate_dt(self, t):
@@ -94,59 +111,9 @@ class Recorder(Worker):
         try:
             with open(self.marker_filename, "w") as f:
                 pass
-
-            def avg(data, dt):
-                abs = np.abs(data)
-                avg = np.mean(abs)
-                pow = np.sum(abs * dt) / 1000.0
-                std = np.std(data)
-                return [avg, pow, std]
-
-            while True:
-                timestamp = long(time.mktime(datetime.now().timetuple()))
-                t, data = self.record_gyro()
-                if self._should_stop:
-                    break
-                dt = np.average(np.gradient(t)) / 1000.0
-
-                filename = os.path.join(self._directory, 
-                    "{0}.npz".format(timestamp))
-
-                np.savez(filename, t=t, data=data)
-                logger.info("Saved data to %s", filename)
-                #    fft = fft, freqs = freqs)
-                x = data[:,0]
-                y = data[:,1]
-                z = data[:,2]
-                w = np.sqrt(x*x+y*y+z*z)
-                w = w - np.average(w)
-                abs = np.abs(w)
-                avg = np.mean(abs)
-                std = np.std(w)
-                logger.info("Smoothing data...")
-                window_len = 101
-                snip = (window_len-1)/2
-                window = 'hanning'
-                ws = smooth(w,window_len=window_len, window=window)
-                ws = ws[snip:len(ws)-snip]
-                logger.info("Performing FFT...")
-                spec = np.fft.fft(ws)
-                ps = np.abs(spec)**2
-                freq = np.fft.fftfreq(len(t), dt)
-                index = np.argmax(ps)
-                pow = ps[index]
-                if pow > 200000:
-                    f = np.abs(freq[index] * 60)
-                    logger.info("Detected breating frequency %s", f)
-                else:
-                    f = 0
-
-                row = [timestamp, len(data), dt, avg, std, f]  
-                line = ';'.join((str(x) for x in row))
-                #logger.info("Recorded: %s", line)
-                with open(self.data_filename, "a") as f:
-                    f.write(line + '\n')
-
+            with open(self.motion_filename, "w") as f:
+                pass
+            self.record_gyro()
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt")
         except:
