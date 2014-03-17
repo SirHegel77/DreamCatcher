@@ -2,7 +2,7 @@ import sys, getopt
 import math
 from datetime import datetime
 import time
-from shared import Worker
+from shared import Worker, QueueWorker
 from shared import Process
 from shared import smooth
 import os
@@ -12,9 +12,11 @@ from shared import read_config, save_config
 from shared import RingBuffer
 logger = logging.getLogger(__name__)
 
+
 class Recorder(Worker):
     def __init__(self, directory):
         super(Recorder, self).__init__()
+        self._worker = QueueWorker(self.analyze)
         self._directory = directory
         self._timestamp = long(time.mktime(datetime.now().timetuple()))
 
@@ -34,47 +36,76 @@ class Recorder(Worker):
             "{0}.motion".format(self._timestamp))
 
 
+    def analyze_axis(self, data, window, dt, breath_power):
+        #mean = np.mean(np.abs(data))
+        mean = np.mean(data)
+        std = np.std(data)
+        logger.info("Mean: %s, std: %s, dt: %s", mean, std, dt)
+        window = window - np.average(window)
+        spec = np.fft.fft(window)
+        freqs = np.fft.fftfreq(window.shape[-1], dt)
+        ps = np.abs(spec)**2
+        index = np.argmax(ps)
+        pow = ps[index]
+        if pow > breath_power: 
+            f = np.abs(freqs[index] * 60)
+        else:
+            f = 0
+        logger.info("Max power: %s, freq: %s", pow, f)
+        return [mean, std, f]
+
+    def analyze(self, timestamps, x, wx, y, wy):
+        config = read_config()
+        breath_power = config.get('recorder', 'breath_power') 
+
+        timestamp = long(time.mktime(datetime.now().timetuple()))
+        dt = np.abs(np.average(np.gradient(timestamps))) / 1000
+       
+        row = [timestamp] 
+        row += self.analyze_axis(x, wx, dt, breath_power)
+        row += self.analyze_axis(y, wy, dt, breath_power) 
+
+        with open(self.data_filename, "a") as f:
+            f.write(';'.join((str(x) for x in row)) + '\n')
+        filename = os.path.join(self._directory, 
+                    "{0}.npz".format(timestamp))
+        np.savez(filename, dt = dt, timestamps = timestamps, 
+            x = x, y = y, wx = wx, wy = wy)
+
     def record_gyro(self):
         config = read_config()
+
         minimu_command = config.get('minimu', 'command').split()
         logger.info("Recording gyro...")
         window_length = config.getint('recorder', 'window_length')
         increment = config.getint('recorder', 'window_increment')
-        window = RingBuffer(window_length)
+        wx = RingBuffer(window_length)
+        wy = RingBuffer(window_length)
         timestamps = np.zeros(increment, dtype='f')
-        data = np.zeros(increment, dtype='f')
+        x = np.zeros(increment, dtype='f')
+        y = np.zeros(increment, dtype='f')
+        mean_x = config.getfloat('recorder', 'mean_x')
+        mean_y = config.getfloat('recorder', 'mean_y')
         i = 0
         with Process(minimu_command) as p:
             for line in p:
                 if self._should_stop:
                     break
-                if i < increment:
-                    values = line.split()
-                    t = long(values[0])
-                    w = float(values[10])
-                    timestamps[i] = t
-                    data[i] = w
-                    i+=1
-                else:
-                    logger.info("Analyzing...")
-                    window.extend(data)
-                    dt = np.abs(np.average(np.gradient(timestamps))) / 1000
-                    spec = np.fft.fft(data)
-                    freqs = np.fft.fftfreq(window_length, dt)
+                values = line.split()
+                t = long(values[0])
+                x[i] = float(values[7]) - mean_x
+                y[i] = float(values[8]) - mean_y
+                timestamps[i] = t
+                i+=1
+                if i>=increment:
+                    wx.extend(x)
+                    wy.extend(y)
+                    self._worker.enqueue(
+                        np.copy(timestamps), 
+                        np.copy(x), wx.get(),
+                        np.copy(y), wy.get())
                     i = 0
                     
-#                timestamp = long(values[0])
-#                if start == None:
-#                    start = timestamp
-#                if self._should_stop or timestamp - start > time:
-#                    logger.info("Finished recording gyro")
-#                    break
-#                x, y, z = [float(s) for s in values[7:10]]
-#                data.append([x,y,z])
-                #math.sqrt(gyro[0]**2 + gyro[1]**2 + gyro[2]**2))
-#                t.append(timestamp)
-#        return np.array(t), np.array(data)
-
 
     def calculate_dt(self, t):
         dts = [t[i+1]-t[i] for i in range(len(t)-1)]
@@ -109,6 +140,7 @@ class Recorder(Worker):
         config.set('recorder', 'current_session', str(self._timestamp))
         save_config(config)
         try:
+            self._worker.start()
             with open(self.marker_filename, "w") as f:
                 pass
             with open(self.motion_filename, "w") as f:
@@ -119,6 +151,7 @@ class Recorder(Worker):
         except:
             logger.error("Unhandled exception: %s", sys.exc_info()[1])
         finally:
+            self._worker.stop()
             config.set('recorder', 'current_session',str(0))
             save_config(config)
         logger.info("Finished recording")
