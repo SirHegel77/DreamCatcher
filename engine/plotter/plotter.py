@@ -32,7 +32,7 @@ def plot_fft(session_dir, image_dir, timestamp):
 
     logger.info("Reading input file...")
     npz = np.load(inputfilename)
-    w = npz['wy']
+    w = npz['wx']
 
     avg = np.average(w)
     std = np.std(w)
@@ -152,6 +152,16 @@ def read_marker_file(filename):
             markers.append(line.split(";"))
     logging.info("Read %s markers.", len(markers))
     return markers
+
+def plot_all(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
+    import_pyplot()
+    datafilename = os.path.join(session_dir, '{0}.data'.format(timestamp))
+    with open(datafilename, "r") as f:
+        for line in f:
+            values = line.split(";")
+            logger.info("Plotting timestamp %s", values[0])
+            plt.figure()
+            plot_fft(session_dir, image_dir, values[0])
     
 def plot(session_dir, image_dir, timestamp, plot_axes=False, smooth_data=False):
     import_pyplot()
