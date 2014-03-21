@@ -10,6 +10,7 @@ import plotter
 import signal
 from shared import read_config
 from shared import ifconfig
+from glob import iglob
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +70,14 @@ class DreamCatcher(object):
     def update_file_menu(self):
         """ Update file menu sub-items when file menu is activated. """
         del self._file_item.items[:]
-        files = os.listdir(self._path)
-        files.sort(key=lambda x: os.path.getmtime(os.path.join(self._path, x)))
-        for name in reversed(files):
-            if '.data' in name:
-                timestamp = name.split('.')[0]
-                format = "%d.%m.%Y\n%H:%M"
-                date = datetime.fromtimestamp(float(timestamp))
-                item = self._file_item.add_item(date.strftime(format))
-                item.add_item("Plot", self.plot_file(timestamp))
-                item.add_item("Delete", self.delete_file(timestamp))
+        datafiles = iglob(self._path + '/*.data')
+        for path, name in (os.path.split(f) for f in datafiles):
+            timestamp = name.split('.')[0]
+            format = "%d.%m.%Y\n%H:%M"
+            date = datetime.fromtimestamp(float(timestamp))
+            item = self._file_item.add_item(date.strftime(format))
+            item.add_item("Plot", self.plot_file(timestamp))
+            item.add_item("Delete", self.delete_file(timestamp))
 
     def start_recording(self):
         """ Start recording data. """
