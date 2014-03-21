@@ -37,8 +37,7 @@ class Recorder(Worker):
 
 
     def analyze_axis(self, data, window, dt, breath_power):
-        #mean = np.mean(np.abs(data))
-        mean = np.mean(data)
+        mean = np.mean(np.abs(data))
         std = np.std(data)
         logger.info("Mean: %s, std: %s, dt: %s", mean, std, dt)
         window = window - np.average(window)
@@ -72,10 +71,28 @@ class Recorder(Worker):
         np.savez(filename, dt = dt, timestamps = timestamps, 
             x = x, y = y, wx = wx, wy = wy)
 
-    def record_gyro(self):
-        config = read_config()
+    def emulate(self, conifg):
+        pass
 
+    def record_gyro(self, config):
         minimu_command = config.get('minimu', 'command').split()
+        with Process(minimu_command) as p:
+            for line in p:
+                if self._should_stop:
+                    break
+                values = line.split()
+                t = long(values[0])
+                x = float(values[7])
+                y = float(values[8])
+                yield [t, x, y]
+
+    def record(self):
+        config = read_config()
+        if config.getboolean('recorder', 'emulate'):
+            recorder = self.emulate
+        else:
+            recorder = self.record_gyro
+
         logger.info("Recording gyro...")
         window_length = config.getint('recorder', 'window_length')
         increment = config.getint('recorder', 'window_increment')
@@ -87,25 +104,21 @@ class Recorder(Worker):
         mean_x = config.getfloat('recorder', 'mean_x')
         mean_y = config.getfloat('recorder', 'mean_y')
         i = 0
-        with Process(minimu_command) as p:
-            for line in p:
-                if self._should_stop:
-                    break
-                values = line.split()
-                t = long(values[0])
-                x[i] = float(values[7]) - mean_x
-                y[i] = float(values[8]) - mean_y
-                timestamps[i] = t
-                i+=1
-                if i>=increment:
-                    wx.extend(x)
-                    wy.extend(y)
-                    self._worker.enqueue(
-                        np.copy(timestamps), 
-                        np.copy(x), wx.get(),
-                        np.copy(y), wy.get())
-                    i = 0
-                    
+        for t, rx, ry in recorder(config):
+            if self._should_stop:
+                break
+            x[i] = rx
+            y[i] = ry
+            timestamps[i] = t
+            i+=1
+            if i>=increment:
+                wx.extend(x)
+                wy.extend(y)
+                self._worker.enqueue(
+                    np.copy(timestamps), 
+                    np.copy(x), wx.get(),
+                    np.copy(y), wy.get())
+                i = 0
 
     def calculate_dt(self, t):
         dts = [t[i+1]-t[i] for i in range(len(t)-1)]
@@ -145,11 +158,9 @@ class Recorder(Worker):
                 pass
             with open(self.motion_filename, "w") as f:
                 pass
-            self.record_gyro()
+            self.record()
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt")
-        except:
-            logger.error("Unhandled exception: %s", sys.exc_info()[1])
         finally:
             self._worker.stop()
             config.set('recorder', 'current_session',str(0))

@@ -5,3 +5,4 @@ from ifconfig import ifconfig
 from smooth import smooth
 from ringbuffer import RingBuffer
 from queue import QueueWorker
+from fan import Fan

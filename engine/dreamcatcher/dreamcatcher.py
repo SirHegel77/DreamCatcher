@@ -11,6 +11,7 @@ import signal
 from shared import read_config
 from shared import ifconfig
 from glob import iglob
+from shared import Fan
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class DreamCatcher(object):
         self._path = os.path.abspath(
             config.get('directories', 'sessions'))
         self._recorder = None
+        self._fan = Fan()
         self.create_menu()
 
     def create_menu(self):
@@ -126,6 +128,7 @@ class DreamCatcher(object):
         logger.info("Starting DreamCatcher...")
         self._running = True
         self._menu.start()
+        self._fan.start()
         try:
             while self._running:
                 sleep(0.5)
@@ -135,6 +138,7 @@ class DreamCatcher(object):
         self.stop_recording()
         logger.info("Stopping menu...")
         self._menu.stop()
+        self._fan.stop()
         logger.info("DreamCatcher stopped.")
 
     def stop(self):
