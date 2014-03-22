@@ -6,3 +6,4 @@ from smooth import smooth
 from ringbuffer import RingBuffer
 from queue import QueueWorker
 from fan import Fan
+from i2cdetect import i2cdetect

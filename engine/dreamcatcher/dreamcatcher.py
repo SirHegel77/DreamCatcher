@@ -85,6 +85,7 @@ class DreamCatcher(object):
         """ Start recording data. """
         if self._recorder == None:
             logger.info("Starting recorder...")
+            self._restarts = 0
             self._recorder = Recorder(self._path)
             self._recorder.start()
             self.menu.current_item = self._root_item
@@ -111,6 +112,16 @@ class DreamCatcher(object):
             sleep(1.0)
             self.menu.lcd.backlight(self.menu.lcd.RED)
 
+    def verify_recorder(self):
+        """ Verify worker is running """
+        if self._recorder != None:
+            if self._recorder.is_running == False:
+                self._recorder.start()
+                self._restarts += 1
+                self._menu.message(
+                    "Restarted\n{0} restarts".format(
+                    self._restarts))
+
     def toggle_recording(self):
         """ Start or stop recording. """
         if self._recorder == None:
@@ -131,6 +142,7 @@ class DreamCatcher(object):
         self._fan.start()
         try:
             while self._running:
+                self.verify_recorder()
                 sleep(0.5)
         except KeyboardInterrupt:
             pass

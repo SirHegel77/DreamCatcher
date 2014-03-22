@@ -161,6 +161,8 @@ class Recorder(Worker):
             self.record()
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt")
+        except:
+            logger.error("Unhandled exception: %s", sys.exc_info()[1])
         finally:
             self._worker.stop()
             config.set('recorder', 'current_session',str(0))
