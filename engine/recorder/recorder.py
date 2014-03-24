@@ -19,6 +19,9 @@ class Recorder(Worker):
         self._worker = QueueWorker(self.analyze)
         self._directory = directory
         self._timestamp = long(time.mktime(datetime.now().timetuple()))
+        self._npzdir = os.path.join(self._directory, str(self._timestamp))
+        if os.path.exists(self._npzdir) == False:
+            os.makedirs(self._npzdir)
 
     @property
     def data_filename(self):
@@ -66,13 +69,28 @@ class Recorder(Worker):
 
         with open(self.data_filename, "a") as f:
             f.write(';'.join((str(x) for x in row)) + '\n')
-        filename = os.path.join(self._directory, 
-                    "{0}.npz".format(timestamp))
-        np.savez(filename, dt = dt, timestamps = timestamps, 
-            x = x, y = y, wx = wx, wy = wy)
 
-    def emulate(self, conifg):
-        pass
+        if config.getboolean('recorder', 'emulate') == False:
+            filename = os.path.join(self._npzdir, 
+                    "{0}.npz".format(timestamp))
+            np.savez(filename, dt = dt, timestamps = timestamps, 
+                x = x, y = y, wx = wx, wy = wy)
+
+    def emulate(self, config):
+        timestamp = config.get('recorder', 'emulator_timestamp')
+        datafile = os.path.join(self._directory, timestamp + '.data')
+        npzdir = os.path.join(self._directory, timestamp)
+        with open(datafile, 'r') as f:
+            for line in f:
+                timestamp = line.split(';')[0]
+                npzfile = os.path.join(npzdir, timestamp + '.npz')
+                npz = np.load(npzfile)
+                t = npz['timestamps']
+                x = npz['x']
+                y = npz['y']
+                for i in xrange(len(t)):
+                    yield [t[i], x[i], y[i]]
+                
 
     def record_gyro(self, config):
         minimu_command = config.get('minimu', 'command').split()

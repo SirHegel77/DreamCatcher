@@ -4,8 +4,8 @@ class RingBuffer():
     A 1D ring buffer using numpy arrays
     http://scimusing.wordpress.com/2013/10/25/ring-buffers-in-pythonnumpy/
     """
-    def __init__(self, length):
-        self.data = np.zeros(length, dtype='f')
+    def __init__(self, length, dtype='f'):
+        self.data = np.zeros(length, dtype=dtype)
         self.index = 0
 
     def extend(self, x):
