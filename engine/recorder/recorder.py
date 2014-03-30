@@ -1,10 +1,10 @@
-import sys, getopt
-import math
+import sys
 from datetime import datetime
 import time
 from shared import Worker, QueueWorker
 from shared import Process
 from shared import smooth
+from shared import peakdet
 import os
 np = None
 import logging
@@ -39,17 +39,6 @@ class Recorder(Worker):
             "{0}.motion".format(self._timestamp))
 
 
-    def analyze_axis(self, data, window, dt):
-        mean = np.mean(np.abs(data))
-        std = np.std(data)
-        logger.info("Mean: %s, std: %s, dt: %s", mean, std, dt)
-        window = window - np.average(window)
-        spec = np.fft.fft(window)
-        freqs = np.fft.fftfreq(window.shape[-1], dt)
-        ps = np.abs(spec)**2
-        p = np.log10(np.sum(ps))
-
-        return [mean, std, p]
 
     def fft(self, w, dt):
         avg = np.average(w)
@@ -64,16 +53,69 @@ class Recorder(Worker):
         ps = ps[wl:len(ps)-wl]     
         return (freqs, ps)
 
+    def analyze_breath_and_hb(self, freqs, ps):    
+        breath = []
+        hb = []
+        peak_limit = 150000
+        max, min = peakdet(ps, peak_limit, freqs)
+        max = np.array(max)
+        if len(max)>0:
+            previous_value = None
+            first_harmonic = 2
+            for peak in max:            
+                found = False
+                if previous_value != None:
+                    for i in xrange(first_harmonic, 5):
+                        value = peak[0] * 60.0 / i
+                        if abs(previous_value-value)< 2.6:
+                            found = True
+                            previous_value = value
+                            break
+                        
+                if found == False:
+                    if peak[0] < 0.666: # 40/min
+                        limit = 15
+                    else:
+                        limit = 110
+                        
+                    for i in xrange(1,5):
+                        value = peak[0] * 60.0 / i
+                        first_harmonic = i+1
+                        if value < limit:
+                            break          
+                        
+                    previous_value = value
+                if value < 30:
+                    breath.append(value)
+                else:
+                    hb.append(value)
+                    
+        if len(breath)>0:
+            breath = np.average(np.array(breath))
+        else:
+            breath = 0
+        
+        if len(hb)>0:
+            hb = np.average(np.array(hb))
+        else:
+            hb = 0
+            
+        return (breath, hb)
 
     def analyze(self, timestamps, x, wx, y, wy):
         timestamp = long(time.mktime(datetime.now().timetuple()))
         dt = np.abs(np.average(np.gradient(timestamps))) / 1000
-        (freqs, ps) = self.fft(x, dt)
-        px = np.sum(ps)
-        (freqs, ps) = self.fft(y, dt)
-        py = np.sum(ps)
+        (freqs, psx) = self.fft(x, dt)        
+        (freqs, psy) = self.fft(y, dt)
+        px = np.sum(psx)
+        py = np.sum(psy)
         signal_power = np.log10((px + py) / 2)
  
+        (freqs, psx) = self.fft(wx, dt)        
+        (freqs, psy) = self.fft(wy, dt)
+        ps = (psx+psy)/2
+        (breath, hb) = self.analyze_breath_and_hb(freqs, ps)
+        
         # Update sleep buffer
         power_min = self._config.getfloat('recorder', 'power_min')
         power_max = self._config.getfloat('recorder', 'power_max')
@@ -148,7 +190,7 @@ class Recorder(Worker):
         increment = self._config.getint('recorder', 'window_increment')
         wx = RingBuffer(window_length)
         wy = RingBuffer(window_length)
-	self._sleep_window = RingBuffer(
+        self._sleep_window = RingBuffer(
             self._config.getint('recorder', 'sleep_window_length'))
         self._sleep_level = 0.0
         timestamps = np.zeros(increment, dtype='f')
