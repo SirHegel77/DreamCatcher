@@ -1,3 +1,4 @@
+
 import sys
 from datetime import datetime
 import time
@@ -110,9 +111,15 @@ class Recorder(Worker):
         px = np.sum(psx)
         py = np.sum(psy)
         signal_power = np.log10((px + py) / 2)
- 
-        (freqs, psx) = self.fft(wx, dt)        
-        (freqs, psy) = self.fft(wy, dt)
+
+        mask_limit = 13.0
+        mx = np.ma.masked_outside(wx - np.mean(wx), -mask_limit, mask_limit)    
+        my = np.ma.masked_outside(wy - np.mean(wy), -mask_limit, mask_limit)
+        mask = np.logical_or(mx.mask, my.mask)
+        mx = np.ma.array(mx, mask=mask)    
+        my = np.ma.array(my, mask=mask)     
+        (freqs, psx) = self.fft(mx.compressed(), dt)        
+        (freqs, psy) = self.fft(my.compressed(), dt)
         ps = (psx+psy)/2
         (breath, hb) = self.analyze_breath_and_hb(freqs, ps)
         
@@ -141,7 +148,7 @@ class Recorder(Worker):
 
         self._sleep_level = sleep_level
 
-        row = [timestamp, signal_power, sleep_level, delta] 
+        row = [timestamp, signal_power, sleep_level, delta, breath, hb] 
         logger.info("Analyzed %s", row)
 
         with open(self.data_filename, "a") as f:
