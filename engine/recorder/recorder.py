@@ -116,13 +116,17 @@ class Recorder(Worker):
         mx = np.ma.masked_outside(wx - np.mean(wx), -mask_limit, mask_limit)    
         my = np.ma.masked_outside(wy - np.mean(wy), -mask_limit, mask_limit)
         mask = np.logical_or(mx.mask, my.mask)
-        mx = np.ma.array(mx, mask=mask)    
-        my = np.ma.array(my, mask=mask)     
-        (freqs, psx) = self.fft(mx.compressed(), dt)        
-        (freqs, psy) = self.fft(my.compressed(), dt)
-        ps = (psx+psy)/2
-        (breath, hb) = self.analyze_breath_and_hb(freqs, ps)
-        
+        mx = np.ma.array(mx, mask=mask).compressed()    
+        my = np.ma.array(my, mask=mask).compressed()
+        if mx.shape[-1] > 0:
+            (freqs, psx) = self.fft(mx, dt)        
+            (freqs, psy) = self.fft(my, dt)
+            ps = (psx+psy)/2
+            (breath, hb) = self.analyze_breath_and_hb(freqs, ps)
+        else:
+            breath = 0
+            hb = 0
+
         # Update sleep buffer
         power_min = self._config.getfloat('recorder', 'power_min')
         power_max = self._config.getfloat('recorder', 'power_max')
