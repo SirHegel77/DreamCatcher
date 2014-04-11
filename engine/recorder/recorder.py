@@ -108,8 +108,8 @@ class Recorder(Worker):
         dt = np.abs(np.average(np.gradient(timestamps))) / 1000
         (freqs, psx) = self.fft(x, dt)        
         (freqs, psy) = self.fft(y, dt)
-        px = np.sum(psx)
-        py = np.sum(psy)
+        px = np.sum(psx) / psx.shape[-1]
+        py = np.sum(psy) / psy.shape[-1]
         signal_power = np.log10((px + py) / 2)
 
         mask_limit = 13.0
@@ -118,12 +118,14 @@ class Recorder(Worker):
         mask = np.logical_or(mx.mask, my.mask)
         mx = np.ma.array(mx, mask=mask).compressed()    
         my = np.ma.array(my, mask=mask).compressed()
-        if mx.shape[-1] > 0:
+        
+        if mx.shape[-1] > 20 and my.shape[-1] > 20:
             (freqs, psx) = self.fft(mx, dt)        
             (freqs, psy) = self.fft(my, dt)
             ps = (psx+psy)/2
             (breath, hb) = self.analyze_breath_and_hb(freqs, ps)
         else:
+            logger.info("Skipping breath analysis")
             breath = 0
             hb = 0
 
