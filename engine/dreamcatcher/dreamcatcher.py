@@ -67,7 +67,7 @@ class DreamCatcher(object):
 
         def be_clever():
             config = read_config()
-            min = config.get('recorder', 'power_min')
+            min = config.getfloat('recorder', 'power_min')
             pow = self._recorder.signal_power
             if pow < min:
                 return "Thinking:\nNot in bed."
