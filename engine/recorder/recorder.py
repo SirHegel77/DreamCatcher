@@ -21,8 +21,10 @@ class Recorder(Worker):
         self._directory = directory
         self._timestamp = long(time.mktime(datetime.now().timetuple()))
         self._npzdir = os.path.join(self._directory, str(self._timestamp))
-        if os.path.exists(self._npzdir) == False:
-            os.makedirs(self._npzdir)
+        self._signal_power = 0.0
+        self._sleep_level = 0.0
+        self._breath = 0.0
+        self._hb = 0.0
 
     @property
     def data_filename(self):
@@ -39,7 +41,21 @@ class Recorder(Worker):
         return os.path.join(self._directory,
             "{0}.motion".format(self._timestamp))
 
+    @property
+    def signal_power(self):
+        return self._signal_power
 
+    @property
+    def sleep_level(self):
+        return self._sleep_level
+
+    @property
+    def breath(self):
+        return self._breath
+
+    @property
+    def hb(self):
+        return self._hb
 
     def fft(self, w, dt):
         avg = np.average(w)
@@ -111,6 +127,7 @@ class Recorder(Worker):
         px = np.sum(psx) / psx.shape[-1]
         py = np.sum(psy) / psy.shape[-1]
         signal_power = np.log10((px + py) / 2)
+        
 
         mask_limit = 13.0
         mx = np.ma.masked_outside(wx - np.mean(wx), -mask_limit, mask_limit)    
@@ -153,13 +170,17 @@ class Recorder(Worker):
                         comment='Sleep level trigger')
 
         self._sleep_level = sleep_level
-
+        self._signal_power = signal_power
+        self._hb = hb
+        self._breath = breath
         row = [timestamp, signal_power, sleep_level, delta, breath, hb] 
         logger.info("Analyzed %s", row)
 
         with open(self.data_filename, "a") as f:
             f.write(';'.join((str(x) for x in row)) + '\n')
         if self._config.getboolean('recorder', 'emulate') == False:
+            if os.path.exists(self._npzdir) == False:
+                os.makedirs(self._npzdir)
             filename = os.path.join(self._npzdir, 
                     "{0}.npz".format(timestamp))
             np.savez(filename, dt = dt, timestamps = timestamps, 

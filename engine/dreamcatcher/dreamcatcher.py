@@ -21,6 +21,7 @@ class DreamCatcher(object):
         self._path = os.path.abspath(
             config.get('directories', 'sessions'))
         self._recorder = None
+        self._display_index = 0 # Text to show in root menu
         self._fan = Fan()
         self.create_menu()
 
@@ -43,6 +44,48 @@ class DreamCatcher(object):
 
         m.add_item("Exit", self.stop)
         m.add_item("Shut down", self.shut_down)
+
+    def update_root_menuitem(self):
+        if self._recorder == None:
+            return 
+
+        def pow():
+            return "Sig. Pow.\n{0:.2f}".format(
+                self._recorder.signal_power)
+
+        def level():
+            return "Sleep Lvl.\n{0:.2f}".format(
+                self._recorder.sleep_level)
+
+        def hb():
+            return "Est. Hb.\n{0:.2f}".format(
+                self._recorder.hb)
+
+        def breath():
+            return "Est. Breath.\n{0:.2f}".format(
+                self._recorder.breath)
+
+        def be_clever():
+            config = read_config()
+            min = config.get('recorder', 'power_min')
+            pow = self._recorder.signal_power
+            if pow < min:
+                return "Thinking:\nNot in bed."
+            else:
+                level = self._recorder.sleep_level
+                if level > 0:
+                    return "Thinking:\nAwake."
+                elif level > -0.5:
+                    return "Thinking:\nLight sleep."
+                else:
+                    return "Thinking:\nSleeping."
+
+        func = [pow, level, hb, breath, be_clever][self._display_index]
+        self._root_item.header = func()
+        self._display_index += 1
+        if self._display_index > 4 :
+            self._display_index = 0
+        
  
     def delete_file(self, filename):
         """ Delete selected recording session. """
@@ -141,8 +184,14 @@ class DreamCatcher(object):
         self._menu.start()
         self._fan.start()
         try:
+            t = 0
             while self._running:
                 self.verify_recorder()
+                if t > 3:
+                    self.update_root_menuitem()
+                    t = 0
+                else:
+                    t += 1
                 sleep(0.5)
         except KeyboardInterrupt:
             pass
