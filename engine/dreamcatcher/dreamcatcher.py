@@ -157,13 +157,22 @@ class DreamCatcher(object):
 
     def verify_recorder(self):
         """ Verify worker is running """
-        if self._recorder != None:
-            if self._recorder.is_running == False:
-                self._recorder.start()
-                self._restarts += 1
-                self._menu.message(
-                    "Restarted\n{0} restarts".format(
-                    self._restarts))
+        conf = read_config()
+        should_run = conf.getboolean('recorder', 'is_recording')
+        if should_run:
+            if self._recorder == None:
+                self.start_recording()
+            else:
+                if self._recorder.is_running == False:
+                    self._recorder.start()
+                    self._restarts += 1
+                    self._menu.message(
+                        "Restarted\n{0} restarts".format(
+                        self._restarts))
+
+        else:
+            if self._recorder != None:
+                self.stop_recording()
 
     def toggle_recording(self):
         """ Start or stop recording. """

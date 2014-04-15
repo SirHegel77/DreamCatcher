@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class Recorder(Worker):
+    STATE_NOT_IN_BED = 0
+    STATE_AWAKE = 1
+    STATE_LIGHT_SLEEP = 2
+    STATE_DEEP_SLEEP = 3
+
     def __init__(self, directory):
         super(Recorder, self).__init__()
         self._worker = QueueWorker(self.analyze)
@@ -25,6 +30,12 @@ class Recorder(Worker):
         self._sleep_level = 0.0
         self._breath = 0.0
         self._hb = 0.0
+
+    @property
+    def status_filename(self):
+        return os.path.join(self._directory, 
+            "current_status.data".format(self._timestamp))
+    
 
     @property
     def data_filename(self):
@@ -56,6 +67,23 @@ class Recorder(Worker):
     @property
     def hb(self):
         return self._hb
+
+    @property
+    def state(self):
+        config = read_config()
+        min = config.getfloat('recorder', 'power_min')
+        pow = self.signal_power
+        if pow < min:
+            return Recorder.STATE_NOT_IN_BED
+        else:
+            level = self.sleep_level
+            if level > 0:
+                return Recorder.STATE_AWAKE
+            elif level > -0.5:
+                return Recorder.STATE_LIGHT_SLEEP
+            else:
+                return Recorder.STATE_DEEP_SLEEP
+
 
     def fft(self, w, dt):
         avg = np.average(w)
@@ -173,11 +201,16 @@ class Recorder(Worker):
         self._signal_power = signal_power
         self._hb = hb
         self._breath = breath
-        row = [timestamp, signal_power, sleep_level, delta, breath, hb] 
+        state = self.state
+        row = [timestamp, signal_power, sleep_level, delta, breath, hb, state] 
         logger.info("Analyzed %s", row)
 
         with open(self.data_filename, "a") as f:
             f.write(';'.join((str(x) for x in row)) + '\n')
+
+        with open(self.status_filename, "w") as f:
+            f.write(';'.join((str(x) for x in row)) + '\n')
+
         if self._config.getboolean('recorder', 'emulate') == False:
             if os.path.exists(self._npzdir) == False:
                 os.makedirs(self._npzdir)
@@ -276,6 +309,7 @@ class Recorder(Worker):
         logger.info("Recording to %s", self.data_filename)
 
         self._config = read_config()
+        self._config.set('recorder', 'is_recording', str(True))
         self._config.set('recorder', 'current_session', str(self._timestamp))
         save_config(self._config)
         try:
@@ -292,6 +326,8 @@ class Recorder(Worker):
         finally:
             self._worker.stop()
             self._config.set('recorder', 'current_session',str(0))
+            self._config.set('recorder', 'is_recording', str(False))
             save_config(self._config)
+            os.remove(self.status_filename)
         logger.info("Finished recording")
 

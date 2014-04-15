@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}DreamCatcher Status{% endblock %}
+{% block content %}
+<h1>DreamCatcher</h1>
+{% if status.is_recording %}
+<p>DreamCatcher is recording.</p>
+<ul><li><a href="/recorder/stop">Stop recording</a></li></ul>
+{% else %}
+<p>DreamCatcher is not recording.</p>
+<ul><li><a href="/recorder/start">Start recording</a></li></ul>
+{% endif %}
+<ul>
+</ul>
+{% endblock %}

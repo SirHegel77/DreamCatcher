@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}DreamCatcher{% endblock %}
+{% block content %}
+<h1>DreamCatcher</h1>
+<p>Welcome to DreamCatcher. Select from menu:</p>
+<ul>
+{% for item in menu %}
+<li> <a href="{{item.href|e}}">{{item.name}}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}
