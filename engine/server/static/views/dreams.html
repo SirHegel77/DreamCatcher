@@ -1,0 +1,10 @@
+﻿<div data-options="dxView : { name: 'dreams', title: 'Dreams' } " >
+    <div data-options="dxContent : { targetPlaceholder: 'content' } " >
+		<div data-bind="dxList: {dataSource: dataSource, pullRefreshEnabled: true}">
+			<div data-options="dxTemplate: {name: 'item'}" data-bind="dxAction: '#dreamdetails/{id}'">
+				<div data-bind="text: date"></div>
+				<div data-bind="text: time"></div>
+			</div>
+		</div>
+	</div>
+</div>

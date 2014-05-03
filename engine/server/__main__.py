@@ -4,6 +4,9 @@ from flask import render_template
 from flask import redirect, url_for
 from shared import read_config, save_config
 from flask import jsonify
+from flask import Response
+from glob import glob, iglob
+import json
 import logging
 from werkzeug import SharedDataMiddleware
 import os
@@ -11,25 +14,103 @@ import os
 logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='static',
     static_url_path='/static')
-#app.wsgi_app = SharedDataMiddleware(app.wsgi_app, 
-#    {'/': os.path.join(os.path.dirname(__file__), 'static')})
 
 @app.route('/')
 def root():
-    return render_template('index.html')
+    return redirect('static/index.html')
+
+def take_from(items, take, skip):
+    if skip != None:
+        for i in xrange(skip):
+            items.next()
+    while True:
+        if take != None:
+           if take == 0:
+               raise StopIteration
+           else:
+               take -= 1
+        yield items.next()    
 
 
-@app.route('/server', methods=['GET', 'POST'])
-def server():
+def dream_info(timestamp):
     conf = read_config()
-    if request.method == 'POST':
+    session_dir = conf.get('directories', 'sessions')
+    filename = os.path.join(session_dir, timestamp + '.data')
+    firstline = os.popen("head -1 %s" % filename).read()
+    if firstline:
+        start = long(firstline.split(';')[0])
+    else:
+        start = 0
+
+    lastline = os.popen("tail -n 1 %s" % filename).read()
+    if lastline:
+        end = long(lastline.split(';')[0])
+    else:
+        end = 0
+    
+    return {'id': long(timestamp), 'start': start, 'end': end}
+
+
+def dream_data(timestamp):
+    conf = read_config()
+    session_dir = conf.get('directories', 'sessions')
+    filename = os.path.join(session_dir, timestamp + '.data')
+    result = []
+    with open(filename, 'r') as f:
+        for line in f:
+            fields = line.split(';')
+            values = {'timestap': long(fields[0]),
+                      'signal_power': float(fields[1]),
+                      'sleep_level': float(fields[2]),
+                      'breath': float(fields[4]),
+                      'hb': float(fields[5]),
+                      'state': int(fields[6])}
+            result.append(values)
+
+    return result
+
+@app.route('/dreams')
+def dreams():
+    conf = read_config()
+    session_dir = conf.get('directories', 'sessions')
+    datafiles = sorted(glob(session_dir + '/*.data'), 
+        key = os.path.getctime, reverse = True)
+    timestamps = (os.path.splitext(os.path.split(fn)[1])[0] for fn in datafiles)    
+    take = None
+    if request.args.has_key('take'):
+        take = int(request.args.get('take'))
+    skip = None
+    if request.args.has_key('skip'):
+        skip = int(request.args.get('skip'))
+        print "skip: ", take
+    else:
+        print "No skip"
+    
+    dreams = [{'id': ts} for ts in take_from(timestamps, take, skip)]
+    return Response(json.dumps(dreams), mimetype='application/json')
+
+
+@app.route('/dreams/<id>', methods=['GET'])
+def dream(id):
+    return jsonify(dream_info(id))
+
+@app.route('/dreams/<id>/data', methods=['GET'])
+def dreamdata(id):
+    data = dream_data(id)
+    return Response(json.dumps(data), mimetype='application/json')
+
+@app.route('/recorder', methods=['GET', 'PUT'])
+def recorder():
+    conf = read_config()
+    if request.method == 'PUT':
         conf.set('recorder', 'is_recording', 
-            str(request.json['running']))
+            str(request.json['is_recording']))
         save_config(conf)
-    return jsonify({'running':
+    return jsonify({'is_recording':
         conf.getboolean('recorder', 'is_recording')})
 
-@app.route('/server/status')
+
+@app.route('/recorder/status')
 def status():
     conf = read_config()
     dir = conf.get('directories', 'sessions')
