@@ -31,7 +31,6 @@ def take_from(items, take, skip):
                take -= 1
         yield items.next()    
 
-
 def dream_info(timestamp):
     conf = read_config()
     session_dir = conf.get('directories', 'sessions')
@@ -51,6 +50,43 @@ def dream_info(timestamp):
     return {'id': long(timestamp), 'start': start, 'end': end}
 
 
+def dream_summary(timestamp):
+    conf = read_config()
+    session_dir = conf.get('directories', 'sessions')
+    filename = os.path.join(session_dir, timestamp + '.data')
+    NOT_IN_BED = 0
+    AWAKE = 1
+    LIGHT_SLEEP = 2
+    DEEP_SLEEP = 3
+    result = [{'Name': 'Not in bed', 'Total':0, 'Percent': 0.0, 'Transitions': 0},
+              {'Name': 'Awake', 'Total':0, 'Percent': 0.0, 'Transitions': 0},
+              {'Name': 'Light sleep', 'Total':0, 'Percent': 0.0, 'Transitions': 0},
+              {'Name': 'Deep sleep', 'Total':0, 'Percent': 0.0, 'Transitions': 0}]
+
+    totaltime = 0
+    previous_time = long(timestamp)
+    previous_state = 0
+    with open(filename, 'r') as f:
+        for line in f:
+            fields = line.split(';')
+            timestamp = long(fields[0])
+            state = int(fields[6])
+            diff = timestamp - previous_time
+            
+            current_state = result[state]
+            current_state['Total']+=diff
+            if state <> previous_state:
+                current_state['Transitions']+=1
+
+            totaltime += diff
+            previous_time = timestamp
+            previous_state = state
+
+    for state in result:
+        state['Percent'] = float(state['Total']) / float(totaltime) * 100.0
+    return result
+
+
 def dream_data(timestamp):
     conf = read_config()
     session_dir = conf.get('directories', 'sessions')
@@ -59,7 +95,7 @@ def dream_data(timestamp):
     with open(filename, 'r') as f:
         for line in f:
             fields = line.split(';')
-            values = {'timestap': long(fields[0]),
+            values = {'timestamp': long(fields[0]),
                       'signal_power': float(fields[1]),
                       'sleep_level': float(fields[2]),
                       'breath': float(fields[4]),
@@ -98,6 +134,12 @@ def dream(id):
 def dreamdata(id):
     data = dream_data(id)
     return Response(json.dumps(data), mimetype='application/json')
+
+@app.route('/dreams/<id>/summary', methods=['GET'])
+def dreamsummary(id):
+    data = dream_summary(id)
+    return Response(json.dumps(data), mimetype='application/json')
+
 
 @app.route('/recorder', methods=['GET', 'PUT'])
 def recorder():
